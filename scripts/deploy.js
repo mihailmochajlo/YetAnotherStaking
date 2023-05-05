@@ -7,21 +7,34 @@
 const hre = require("hardhat");
 
 async function main() {
-  const currentTimestampInSeconds = Math.round(Date.now() / 1000);
-  const unlockTime = currentTimestampInSeconds + 60;
+  const accounts = await ethers.getSigners();
 
-  const lockedAmount = hre.ethers.utils.parseEther("0.001");
-
-  const Lock = await hre.ethers.getContractFactory("Lock");
-  const lock = await Lock.deploy(unlockTime, { value: lockedAmount });
-
-  await lock.deployed();
-
-  console.log(
-    `Lock with ${ethers.utils.formatEther(
-      lockedAmount
-    )}ETH and unlock timestamp ${unlockTime} deployed to ${lock.address}`
+  const TetherToken = await ethers.getContractFactory("TetherToken");
+  const AwesomeToken = await ethers.getContractFactory("AwesomeToken");
+  const StakeAwesomeForTether = await ethers.getContractFactory(
+    "StakeAwesomeForTether"
   );
+
+  const tetherToken = await TetherToken.deploy(
+    ethers.utils.parseEther("100000")
+  );
+  await tetherToken.deployed();
+  console.log(`TetherToken contract was deployed to ${tetherToken.address}`);
+
+  const awesomeToken = await AwesomeToken.deploy(
+    ethers.utils.parseEther("100000")
+  );
+  await awesomeToken.deployed();
+  console.log(`AwesomeToken contract was deployed to ${awesomeToken.address}`);
+
+  const stakeContract = await StakeAwesomeForTether.deploy(
+    tetherToken.address,
+    awesomeToken.address,
+    365 * 24 * 60 * 60,
+    20
+  );
+  await stakeContract.deployed();
+  console.log(`Stake contract was deployed to ${stakeContract.address}`);
 }
 
 // We recommend this pattern to be able to use async/await everywhere
