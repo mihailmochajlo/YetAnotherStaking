@@ -28,8 +28,8 @@ async function main() {
   console.log(`AwesomeToken contract was deployed to ${awesomeToken.address}`);
 
   const stakeContract = await StakeAwesomeForTether.deploy(
-    tetherToken.address,
     awesomeToken.address,
+    tetherToken.address,
     365 * 24 * 60 * 60,
     20
   );
