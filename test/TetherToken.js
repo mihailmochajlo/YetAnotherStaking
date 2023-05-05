@@ -11,12 +11,7 @@ describe("TetherToken", function () {
 
     const [owner, otherAccount] = await ethers.getSigners();
     const TetherToken = await ethers.getContractFactory("TetherToken");
-    const tetherToken = await TetherToken.deploy(
-      INITIAL_SUPPLY,
-      NAME,
-      SYMBOL,
-      DECIMALS
-    );
+    const tetherToken = await TetherToken.deploy(INITIAL_SUPPLY);
     await tetherToken.deployed();
     return {
       tetherToken,
@@ -94,64 +89,21 @@ describe("TetherToken", function () {
     });
   });
 
-  describe("Supply", function () {
-    it("Should increase supply and owner balance", async function () {
-      const { tetherToken, owner, INITIAL_SUPPLY } = await loadFixture(
-        deployTetherToken
-      );
-      await tetherToken.issue(INITIAL_SUPPLY);
-      expect(await tetherToken.totalSupply()).to.equal(2n * INITIAL_SUPPLY);
-      expect(await tetherToken.balanceOf(owner.address)).to.equal(
-        2n * INITIAL_SUPPLY
-      );
-    });
-    it("Should decrease supply and owner balance", async function () {
-      const { tetherToken, owner, INITIAL_SUPPLY } = await loadFixture(
-        deployTetherToken
-      );
-      await tetherToken.redeem(INITIAL_SUPPLY);
-      expect(await tetherToken.totalSupply()).to.equal(0n);
-      expect(await tetherToken.balanceOf(owner.address)).to.equal(0n);
-    });
-    it("Should fail if non-owner tries to increase supply", async function () {
+  describe("Minting", function () {
+    it("Should mint tokens", async function () {
       const { tetherToken, otherAccount, INITIAL_SUPPLY } = await loadFixture(
         deployTetherToken
       );
-      await expect(
-        tetherToken.connect(otherAccount).issue(INITIAL_SUPPLY)
-      ).to.be.revertedWith("Ownable: caller is not the owner");
+      await tetherToken.mint(otherAccount.address, 1n);
+      expect(await tetherToken.balanceOf(otherAccount.address)).to.equal(1n);
     });
-    it("Should fail if non-owner tries to decrease supply", async function () {
-      const { tetherToken, otherAccount, INITIAL_SUPPLY } = await loadFixture(
+    it("Should fail if minter is not the owner", async function () {
+      const { tetherToken, otherAccount } = await loadFixture(
         deployTetherToken
       );
       await expect(
-        tetherToken.connect(otherAccount).redeem(INITIAL_SUPPLY)
+        tetherToken.connect(otherAccount).mint(otherAccount.address, 1n)
       ).to.be.revertedWith("Ownable: caller is not the owner");
-    });
-    it("Should fail if owner balance is lower than amount to decrease supply", async function () {
-      const { tetherToken, owner, otherAccount, INITIAL_SUPPLY } =
-        await loadFixture(deployTetherToken);
-      await tetherToken.transfer(otherAccount.address, 1n);
-      await expect(tetherToken.redeem(INITIAL_SUPPLY)).to.be.revertedWith(
-        "Owner balance is less then amount to redeem"
-      );
-    });
-    it("Should emit Issue event", async function () {
-      const { tetherToken, INITIAL_SUPPLY } = await loadFixture(
-        deployTetherToken
-      );
-      await expect(tetherToken.issue(INITIAL_SUPPLY))
-        .to.emit(tetherToken, "Issue")
-        .withArgs(INITIAL_SUPPLY);
-    });
-    it("Should emit Redeem event", async function () {
-      const { tetherToken, INITIAL_SUPPLY } = await loadFixture(
-        deployTetherToken
-      );
-      await expect(tetherToken.redeem(INITIAL_SUPPLY))
-        .to.emit(tetherToken, "Redeem")
-        .withArgs(INITIAL_SUPPLY);
     });
   });
 
@@ -171,13 +123,13 @@ describe("TetherToken", function () {
       );
       await expect(
         tetherToken.transfer(otherAccount.address, INITIAL_SUPPLY + 1n)
-      ).to.be.revertedWith("ERC20: Token balance is less then amount");
+      ).to.be.revertedWith("ERC20: transfer amount exceeds balance");
     });
     it("Should fail if receiver is zero address", async function () {
       const { tetherToken } = await loadFixture(deployTetherToken);
       await expect(
         tetherToken.transfer(ethers.constants.AddressZero, 1n)
-      ).to.be.revertedWith("ERC20: Transfer to the zero address");
+      ).to.be.revertedWith("ERC20: transfer to the zero address");
     });
     it("Should emit Transfer event", async function () {
       const { tetherToken, owner, otherAccount, INITIAL_SUPPLY } =
@@ -194,15 +146,6 @@ describe("TetherToken", function () {
       expect(
         await tetherToken.allowance(owner.address, otherAccount.address)
       ).to.equal(1n);
-    });
-    it("Should fail to update allowance", async function () {
-      const { tetherToken, otherAccount } = await loadFixture(
-        deployTetherToken
-      );
-      await tetherToken.approve(otherAccount.address, 1n);
-      await expect(
-        tetherToken.approve(otherAccount.address, 2n)
-      ).to.be.revertedWith("To reduce/increase allowance, first set to 0");
     });
     it("Should reset allowance", async function () {
       const { tetherToken, owner, otherAccount } = await loadFixture(
@@ -229,13 +172,6 @@ describe("TetherToken", function () {
         await tetherToken.allowance(owner.address, otherAccount.address)
       ).to.equal(0n);
     });
-    it("Should fail transfer from owner", async function () {
-      const { tetherToken, owner, otherAccount, INITIAL_SUPPLY } =
-        await loadFixture(deployTetherToken);
-      await expect(
-        tetherToken.transferFrom(owner.address, otherAccount.address, 1n)
-      ).to.be.revertedWith("ERC20: trying to use transferFrom by owner");
-    });
     it("Should fail if no allowance to transfer", async function () {
       const { tetherToken, owner, otherAccount } = await loadFixture(
         deployTetherToken
@@ -244,7 +180,7 @@ describe("TetherToken", function () {
         tetherToken
           .connect(otherAccount)
           .transferFrom(owner.address, otherAccount.address, 1n)
-      ).to.be.revertedWith("ERC20: Amount exceeds allowance");
+      ).to.be.revertedWith("ERC20: insufficient allowance");
     });
     it("Should fail to transfer with allowance if sender doesn't have enough tokens", async function () {
       const { tetherToken, owner, otherAccount, INITIAL_SUPPLY } =
@@ -258,7 +194,7 @@ describe("TetherToken", function () {
             otherAccount.address,
             INITIAL_SUPPLY + 1n
           )
-      ).to.be.revertedWith("ERC20: Token balance is less then amount");
+      ).to.be.revertedWith("ERC20: transfer amount exceeds balance");
     });
     it("Should fail to transfer with allowance if receiver is zero address", async function () {
       const { tetherToken, owner, otherAccount } = await loadFixture(
@@ -266,12 +202,10 @@ describe("TetherToken", function () {
       );
       await tetherToken.approve(otherAccount.address, 1n);
       await expect(
-        tetherToken.connect(otherAccount).transferFrom(
-          owner.address,
-          ethers.constants.AddressZero,
-          1n
-        )
-      ).to.be.revertedWith("ERC20: Transfer to the zero address");
+        tetherToken
+          .connect(otherAccount)
+          .transferFrom(owner.address, ethers.constants.AddressZero, 1n)
+      ).to.be.revertedWith("ERC20: transfer to the zero address");
     });
     it("Should emit Transfer event with allowance", async function () {
       const { tetherToken, owner, otherAccount, INITIAL_SUPPLY } =
