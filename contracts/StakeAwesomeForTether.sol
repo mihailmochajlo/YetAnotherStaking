@@ -12,10 +12,12 @@ contract StakeAwesomeForTether is Ownable {
     mapping(address => uint256) stakeValues;
     mapping(address => uint256) stakeTimes;
     mapping(address => uint256) stakeClaimTimes;
+    mapping(address => bool) airdropWhitelist;
 
     uint256 public stakeDuration;
     uint public stakeAnnualRate;
 
+    uint immutable AIR_DROP_AMOUNT = 200 ether;
     uint immutable SECONDS_IN_YEAR = 31536000;
 
     constructor(
@@ -100,5 +102,31 @@ contract StakeAwesomeForTether is Ownable {
 
     function claimedAt(address staker) public view returns (uint256) {
         return stakeClaimTimes[staker];
+    }
+
+    function addToWhitelist(address addr) public onlyOwner returns (bool) {
+        require(!airdropWhitelist[addr], "Already in whitelist for airdrop");
+        airdropWhitelist[addr] = true;
+        return true;
+    }
+
+    function removeFromWhitelist(address addr) public onlyOwner returns (bool) {
+        require(airdropWhitelist[addr], "Not in the whitelist for airdrop");
+        airdropWhitelist[addr] = false;
+        return true;
+    }
+
+    function isWhitelisted(address addr) public view returns (bool) {
+        return airdropWhitelist[addr];
+    }
+
+    function airDrop() public returns (bool) {
+        require(
+            airdropWhitelist[msg.sender],
+            "Not in the whitelist for airdrop"
+        );
+        airdropWhitelist[msg.sender] = false;
+        awesomeTokenContract.mint(msg.sender, AIR_DROP_AMOUNT);
+        return true;
     }
 }

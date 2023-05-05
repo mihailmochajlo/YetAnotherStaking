@@ -4,6 +4,7 @@ const {
 } = require("@nomicfoundation/hardhat-network-helpers");
 const { anyValue } = require("@nomicfoundation/hardhat-chai-matchers/withArgs");
 const { expect } = require("chai");
+const { ethers } = require("hardhat");
 
 describe("StakeAwesomeForTether", function () {
   async function deployStakeContract() {
@@ -301,7 +302,88 @@ describe("StakeAwesomeForTether", function () {
         .connect(otherAccount)
         .approve(stakeContract.address, AMOUNT);
       await stakeContract.connect(otherAccount).stakeToken(AMOUNT);
-      await expect(stakeContract.connect(otherAccount).withdraw()).to.be.revertedWith("Staked amount still locked");
+      await expect(
+        stakeContract.connect(otherAccount).withdraw()
+      ).to.be.revertedWith("Staked amount still locked");
+    });
+  });
+
+  describe("Airdrop", function () {
+    it("Should add to whitelist", async function () {
+      const { stakeContract, otherAccount } = await loadFixture(
+        deployStakeContract
+      );
+      await stakeContract.addToWhitelist(otherAccount.address);
+      expect(await stakeContract.isWhitelisted(otherAccount.address)).to.equal(
+        true
+      );
+    });
+    it("Should fail to add to whitelist due to already whitelist", async function () {
+      const { stakeContract, otherAccount } = await loadFixture(
+        deployStakeContract
+      );
+      await stakeContract.addToWhitelist(otherAccount.address);
+      await expect(
+        stakeContract.addToWhitelist(otherAccount.address)
+      ).to.be.revertedWith("Already in whitelist for airdrop");
+    });
+    it("Should fail to add to whitelist due to not owner", async function () {
+      const { stakeContract, otherAccount } = await loadFixture(
+        deployStakeContract
+      );
+      await expect(
+        stakeContract.connect(otherAccount).addToWhitelist(otherAccount.address)
+      ).to.be.revertedWith("Ownable: caller is not the owner");
+    });
+    it("Should remove from whitelist", async function () {
+      const { stakeContract, otherAccount } = await loadFixture(
+        deployStakeContract
+      );
+      await stakeContract.addToWhitelist(otherAccount.address);
+      await stakeContract.removeFromWhitelist(otherAccount.address);
+      expect(await stakeContract.isWhitelisted(otherAccount.address)).to.equal(
+        false
+      );
+    });
+    it("Should fail to remove from whitelist due to not in whitelist", async function () {
+      const { stakeContract, otherAccount } = await loadFixture(
+        deployStakeContract
+      );
+      await expect(
+        stakeContract.removeFromWhitelist(otherAccount.address)
+      ).to.be.revertedWith("Not in the whitelist for airdrop");
+    });
+    it("Should fail to remove from whitelist due to not owner", async function () {
+      const { stakeContract, otherAccount } = await loadFixture(
+        deployStakeContract
+      );
+      await stakeContract.addToWhitelist(otherAccount.address);
+      await expect(
+        stakeContract
+          .connect(otherAccount)
+          .removeFromWhitelist(otherAccount.address)
+      ).to.be.revertedWith("Ownable: caller is not the owner");
+    });
+    it("Should be airdropped", async function () {
+      const { stakeContract, awesomeToken, otherAccount } = await loadFixture(
+        deployStakeContract
+      );
+      await stakeContract.addToWhitelist(otherAccount.address);
+      await stakeContract.connect(otherAccount).airDrop();
+      expect(await stakeContract.isWhitelisted(otherAccount.address)).to.equal(
+        false
+      );
+      expect(await awesomeToken.balanceOf(otherAccount.address)).to.equal(
+        ethers.utils.parseEther("200")
+      );
+    });
+    it("Should fail to airdrop due to not whitelist", async function () {
+      const { stakeContract, otherAccount } = await loadFixture(
+        deployStakeContract
+      );
+      await expect(
+        stakeContract.connect(otherAccount).airDrop()
+      ).to.be.revertedWith("Not in the whitelist for airdrop");
     });
   });
 });
